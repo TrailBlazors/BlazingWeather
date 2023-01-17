@@ -1,0 +1,23 @@
+﻿@using BlazingWeather.CurrentWeather.Models;
+
+<div class="card text-center">
+    <div class="card-header">
+        Weather for @Weather.Name
+    </div>
+    <div class="card-body">
+        <img src="@Weather.Weather[0].IconUrl" />
+        <h5 class="card-title">@Math.Round(Weather.Main.Temperature, 1)&nbsp;°F</h5>
+        <p class="card-text">Humidity:&nbsp;@Weather.Main.Humidity.ToString() %</p>
+        <p class="card-text">@DateTimeOffset.FromUnixTimeSeconds(Weather.Dt).ToLocalTime()</p>
+    </div>
+    <div class="card-footer text-muted">
+        @Weather.Weather[0].Description
+    </div>
+</div>
+
+
+@code {
+
+    [Parameter] public CurrentWeatherResponse? Weather { get; set; }
+
+}

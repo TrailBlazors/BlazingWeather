@@ -1,0 +1,130 @@
+﻿@using BlazingWeather.Components
+@using BlazingWeather.Models
+@using BlazingWeather.CurrentWeather.Models
+@using BlazingWeather.Forecast.Models
+
+@page "/weather"
+@inject Solutaris.InfoWARE.ProtectedBrowserStorage.Services.IIWLocalStorageService LocalStorage
+@inject Services.WeatherService WeatherHttpClient
+@inject Services.GeoCodingService GeoCodingHttpClient
+@inject Services.ForecastService ForecastHttpClient
+
+<PageTitle>Weather Forecast</PageTitle>
+
+<h4>Blazing Weather Weather & Forecast</h4>
+
+<hr class="mt-2 mb-3" />
+<div class="centerbox">
+    <h5>Enter a zip code</h5>
+
+    <EditForm Model=@input OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div>
+            <InputText type="text" @bind-Value="input.Zip" placeholder="Search by zip or city" />
+            <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+
+    </EditForm>
+
+    <br /><br />
+    <div>
+        @if (CurrentWeather != null)
+        {
+            <WeatherSummary Weather="CurrentWeather" />
+        }
+    </div>
+
+    <div>
+        @if (Forecast != null)
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Temp. (F)</th>
+                        <th>Humidity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var forecast in Forecast.List)
+                    {
+                        <tr>
+                            <td>@DateTimeOffset.FromUnixTimeSeconds(forecast.Dt).Date.ToShortDateString()</td>
+                            <td>@forecast.Temp.Day</td>
+                            <td>@forecast.Humidity %</td>
+                        </tr>
+
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+
+@code {
+    private CurrentWeatherResponse? CurrentWeather;
+    private ForecastResponse? Forecast;
+    private SearchInput input = new SearchInput { Zip = "45011" };
+    private double Latitude = default!;
+    private double Longitude = default!;
+
+    private async Task HandleValidSubmit(EditContext editContext)
+    {
+        //todo: add better error messages to client
+
+        try
+        {
+            // Zip code must be converted to latitude and longitude for current weather & forecast
+            GeoCodingResponse? geoCodingResponse =
+                    await GeoCodingHttpClient.GetCoordinatesByZipCode(input.Zip);
+
+
+            // Attempt to retrieve a local cached version of the current weather
+            var zipCodeData = await LocalStorage.GetItemAsync<CurrentWeatherResponse>(input.Zip);
+            if (zipCodeData is null)
+            {
+                CurrentWeather = await WeatherHttpClient
+                                    .GetCurrentWeather(geoCodingResponse.Latitude, geoCodingResponse.Longitude);
+
+
+                if (CurrentWeather is not null)
+                {
+                    await LocalStorage.SetItemAsync(input.Zip, CurrentWeather);
+                }
+            }
+            else
+            {
+                CurrentWeather = zipCodeData;
+            }
+
+            // Attempt to retrieve a local cached version of the forecast
+            var forecastData = await LocalStorage.GetItemAsync<ForecastResponse>(input.Zip);
+
+            if (forecastData is null)
+            {
+                Forecast = await ForecastHttpClient
+                                   .GetDailyForecast(geoCodingResponse.Latitude, geoCodingResponse.Longitude);
+
+                if (Forecast is not null)
+                {
+                    await LocalStorage.SetItemAsync(input.Zip, Forecast);
+                }
+            }
+            else
+            {
+                Forecast = forecastData;
+            }
+
+
+        }
+        catch (Exception e)
+        {
+            //todo: add persisted logging
+        }
+
+
+    }
+
+}
